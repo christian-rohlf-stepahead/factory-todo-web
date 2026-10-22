@@ -33,3 +33,11 @@ npm test
 The tests exercise the server's routing and `/api/*` proxying, and drive the
 frontend's own script in a headless DOM (`jsdom`) against the real server
 over a Unix socket — neither needs a browser or a deployed environment.
+
+## Browser tests against a deployed product
+
+`e2e/` holds Playwright tests that run only against a deployed product, via
+the `test` step declared in `.factory/environment.json`: they read
+`FACTORY_URL_TODO_WEB` and `FACTORY_URL_TODO_CLI` and check the web app and
+the web terminal from a real browser. They need no browser or deployment in
+this repository's own sandbox and are not run by `npm test`.
