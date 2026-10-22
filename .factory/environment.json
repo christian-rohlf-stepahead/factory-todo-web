@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "images": [
+    { "name": "web", "dockerfile": "Dockerfile", "context": "." }
+  ],
+  "host": { "path": "/" }
+}

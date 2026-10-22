@@ -1,0 +1,14 @@
+{
+  "name": "todo-web",
+  "version": "1.0.0",
+  "description": "A small Node server and plain frontend for the todo list.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}
