@@ -145,6 +145,135 @@ test('AC3: marking a todo done in the web UI is reflected in the list as done', 
   assert.equal(updatedCheckbox.checked, true);
 });
 
+test('AC1: adding a todo with a due date through the web UI saves it with that due date', async (t) => {
+  const created = {
+    id: 'new1',
+    title: 'Buy milk',
+    completed: false,
+    due: '2026-12-01',
+    priority: 'normal',
+    tags: [],
+  };
+  const api = await startFakeApi(async ({ method, url, body }) => {
+    if (method === 'GET' && url === '/tasks') return { status: 200, body: [] };
+    if (method === 'POST' && url === '/tasks') {
+      assert.deepEqual(body, { title: 'Buy milk', due: '2026-12-01' });
+      return { status: 201, body: created };
+    }
+    throw new Error(`unexpected request: ${method} ${url}`);
+  });
+  t.after(api.close);
+  const web = await startWebServer({ agent: api.agent });
+  t.after(web.close);
+
+  const dom = await loadPage(web.socketPath);
+  const { document } = dom.window;
+
+  const titleInput = document.querySelector('#title-input');
+  const dueInput = document.querySelector('#due-input');
+  assert.ok(dueInput, 'expected a #due-input field for optionally setting a due date when adding a todo');
+
+  titleInput.value = 'Buy milk';
+  dueInput.value = '2026-12-01';
+  const form = document.querySelector('#add-form');
+  form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+  await flush();
+
+  const item = document.querySelector('#todo-list li[data-id="new1"]');
+  assert.ok(item, 'expected the newly added todo to appear in the list');
+  assert.match(item.textContent, /2026-12-01/);
+});
+
+test("AC2: changing an existing todo's due date through the web UI saves the change", async (t) => {
+  const task = { id: 't1', title: 'Buy milk', completed: false, due: '2026-11-01', priority: 'normal', tags: [] };
+  const updated = { ...task, due: '2026-12-25' };
+  const api = await startFakeApi(async ({ method, url, body }) => {
+    if (method === 'GET' && url === '/tasks') return { status: 200, body: [task] };
+    if (method === 'PATCH' && url === '/tasks/t1') {
+      assert.deepEqual(body, { due: '2026-12-25' });
+      return { status: 200, body: updated };
+    }
+    throw new Error(`unexpected request: ${method} ${url}`);
+  });
+  t.after(api.close);
+  const web = await startWebServer({ agent: api.agent });
+  t.after(web.close);
+
+  const dom = await loadPage(web.socketPath);
+  const { document } = dom.window;
+
+  const dueEdit = document.querySelector('#todo-list li[data-id="t1"] input.due-edit');
+  assert.ok(dueEdit, 'expected a due-date input on the todo row to change its due date');
+  assert.equal(dueEdit.value, '2026-11-01');
+
+  dueEdit.value = '2026-12-25';
+  dueEdit.dispatchEvent(new dom.window.Event('change'));
+  await flush();
+
+  const item = document.querySelector('#todo-list li[data-id="t1"]');
+  assert.ok(item, 'expected the todo to still be in the list');
+  assert.match(item.textContent, /2026-12-25/);
+});
+
+test("AC3: clearing an existing todo's due date through the web UI saves the clearing", async (t) => {
+  const task = { id: 't1', title: 'Buy milk', completed: false, due: '2026-11-01', priority: 'normal', tags: [] };
+  const updated = { ...task, due: null };
+  const api = await startFakeApi(async ({ method, url, body }) => {
+    if (method === 'GET' && url === '/tasks') return { status: 200, body: [task] };
+    if (method === 'PATCH' && url === '/tasks/t1') {
+      assert.deepEqual(body, { due: null });
+      return { status: 200, body: updated };
+    }
+    throw new Error(`unexpected request: ${method} ${url}`);
+  });
+  t.after(api.close);
+  const web = await startWebServer({ agent: api.agent });
+  t.after(web.close);
+
+  const dom = await loadPage(web.socketPath);
+  const { document } = dom.window;
+
+  const dueEdit = document.querySelector('#todo-list li[data-id="t1"] input.due-edit');
+  assert.ok(dueEdit, 'expected a due-date input on the todo row to clear its due date');
+
+  dueEdit.value = '';
+  dueEdit.dispatchEvent(new dom.window.Event('change'));
+  await flush();
+
+  const item = document.querySelector('#todo-list li[data-id="t1"]');
+  assert.ok(item, 'expected the todo to still be in the list');
+  assert.match(item.textContent, /due: none/);
+});
+
+test('AC4/AC5: a not-done, overdue todo is visibly marked overdue while a done, an undated, and a due-today-or-later todo are not', async (t) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const pastDue = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const overdue = { id: 't1', title: 'Renew the parking permit', completed: false, due: pastDue, priority: 'high', tags: [] };
+  const doneButOverdue = { id: 'd1', title: 'Water the office plants', completed: true, due: pastDue, priority: 'low', tags: [] };
+  const noDueDate = { id: 'd2', title: 'Someday maybe', completed: false, due: null, priority: 'normal', tags: [] };
+  const dueToday = { id: 'd3', title: 'Due exactly today', completed: false, due: today, priority: 'normal', tags: [] };
+  const dueFuture = { id: 'd4', title: 'Plan the team offsite', completed: false, due: future, priority: 'normal', tags: [] };
+  const tasks = [overdue, doneButOverdue, noDueDate, dueToday, dueFuture];
+  const api = await startFakeApi(async () => ({ status: 200, body: tasks }));
+  t.after(api.close);
+  const web = await startWebServer({ agent: api.agent });
+  t.after(web.close);
+
+  const dom = await loadPage(web.socketPath);
+  const { document } = dom.window;
+
+  const overdueItem = document.querySelector(`#todo-list li[data-id="${overdue.id}"]`);
+  assert.ok(overdueItem, 'expected the overdue todo to be rendered');
+  assert.equal(overdueItem.classList.contains('overdue'), true, 'expected the overdue todo to be visibly marked overdue');
+
+  for (const task of [doneButOverdue, noDueDate, dueToday, dueFuture]) {
+    const item = document.querySelector(`#todo-list li[data-id="${task.id}"]`);
+    assert.ok(item, `expected the todo ${task.id} to be rendered`);
+    assert.equal(item.classList.contains('overdue'), false, `expected the todo ${task.id} not to be marked overdue`);
+  }
+});
+
 test('AC4: deleting a todo in the web UI removes it from the list', async (t) => {
   const task = { id: 't1', title: 'Buy milk', completed: false, due: null, priority: 'normal', tags: [] };
   const api = await startFakeApi(async ({ method, url }) => {
