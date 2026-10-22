@@ -2,6 +2,7 @@
 // from each mutating call's own response, rather than re-fetching the whole
 // list after every change.
 let tasks = [];
+let sort = '';
 
 function isOverdue(task) {
   if (task.completed || !task.due) return false;
@@ -49,8 +50,12 @@ function renderTasks() {
   for (const task of tasks) list.appendChild(createTaskElement(task));
 }
 
+function tasksUrl() {
+  return sort ? `/api/tasks?sort=${sort}` : '/api/tasks';
+}
+
 async function loadTasks() {
-  const res = await fetch('/api/tasks');
+  const res = await fetch(tasksUrl());
   tasks = await res.json();
   renderTasks();
 }
@@ -97,6 +102,10 @@ async function deleteTask(id) {
 
 function init() {
   loadTasks();
+  document.getElementById('sort-select').addEventListener('change', (event) => {
+    sort = event.target.value;
+    loadTasks();
+  });
   document.getElementById('add-form').addEventListener('submit', (event) => {
     event.preventDefault();
     const input = document.getElementById('title-input');
