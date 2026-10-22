@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 // low-priority, one plain open todo with a future due date.
 const SEEDED_TITLES = ['Renew the parking permit', 'Water the office plants', 'Plan the team offsite'];
 
-test('AC16: the deployed web app shows the three seeded todos', async ({ page }) => {
+test('AC1: the deployed web app shows the three seeded todos', async ({ page }) => {
   await page.goto('/');
 
   const items = page.locator('#todo-list li');
@@ -17,7 +17,7 @@ test('AC16: the deployed web app shows the three seeded todos', async ({ page })
   }
 });
 
-test('AC17: a todo added through the deployed web app appears in its list', async ({ page }) => {
+test('AC2: a todo added through the deployed web app appears in its list', async ({ page }) => {
   await page.goto('/');
 
   const title = `Pack the conference badges (${Date.now()})`;
