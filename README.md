@@ -30,10 +30,10 @@ served from the static frontend.
 npm run build
 ```
 
-Compiles the Tailwind CSS build to `public/styles.css` (not committed, and
-not yet linked from the page — this is build-tooling scaffolding, ahead of
-the visual redesign). The Docker image runs this as part of its build, so a
-deployed `todo-web` always serves the compiled stylesheet at `/styles.css`.
+Compiles the Tailwind CSS build to `public/styles.css` (not committed),
+linked from `public/index.html` as the page's stylesheet. The Docker image
+runs this as part of its build, so a deployed `todo-web` always serves the
+compiled stylesheet at `/styles.css`.
 
 ## Running the tests
 
