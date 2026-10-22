@@ -1,7 +1,14 @@
 {
   "version": 1,
   "images": [
-    { "name": "web", "dockerfile": "Dockerfile", "context": "." }
+    { "name": "web", "dockerfile": "Dockerfile", "context": "." },
+    { "name": "e2e", "dockerfile": "e2e/Dockerfile", "context": "." }
   ],
-  "host": { "path": "/" }
+  "host": { "path": "/" },
+  "test": {
+    "image": "e2e",
+    "command": ["npx", "playwright", "test"],
+    "report": "/out/junit.xml",
+    "timeoutSeconds": 900
+  }
 }
