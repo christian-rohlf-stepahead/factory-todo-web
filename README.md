@@ -24,6 +24,17 @@ Any request to `/api/<rest>` is forwarded to `${TODO_API_URL}/<rest>`
 (method, body, and status passed through unchanged); every other request is
 served from the static frontend.
 
+## Building the styles
+
+```sh
+npm run build
+```
+
+Compiles the Tailwind CSS build to `public/styles.css` (not committed, and
+not yet linked from the page — this is build-tooling scaffolding, ahead of
+the visual redesign). The Docker image runs this as part of its build, so a
+deployed `todo-web` always serves the compiled stylesheet at `/styles.css`.
+
 ## Running the tests
 
 ```sh
