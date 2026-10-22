@@ -70,3 +70,21 @@ test('AC8: the seeded overdue todo is visibly marked overdue in the deployed web
   await expect(doneItem).not.toHaveClass(/overdue/);
   await expect(futureItem).not.toHaveClass(/overdue/);
 });
+
+test('AC2: sorting the list by due date via the deployed web app shows the seeded todos soonest-first with the undated one last', async ({ page }) => {
+  await page.goto('/');
+
+  await page.locator('#sort-select').selectOption('due');
+
+  // The deployed product accumulates todos added by other browser tests, so
+  // this polls the three seeded todos' relative order rather than assuming
+  // they are the only items in the list.
+  await expect.poll(async () => {
+    const text = await page.locator('#todo-list li').allTextContents();
+    const indexOf = (title) => text.findIndex((line) => line.includes(title));
+    const overdueIndex = indexOf('Renew the parking permit');
+    const futureIndex = indexOf('Plan the team offsite');
+    const undatedIndex = indexOf('Water the office plants');
+    return overdueIndex >= 0 && futureIndex >= 0 && undatedIndex >= 0 && overdueIndex < futureIndex && futureIndex < undatedIndex;
+  }).toBe(true);
+});

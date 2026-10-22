@@ -274,6 +274,36 @@ test('AC4/AC5: a not-done, overdue todo is visibly marked overdue while a done, 
   }
 });
 
+test('AC1: choosing to sort by due date re-fetches the list via GET /tasks?sort=due and renders it in the order returned', async (t) => {
+  const taskFuture = { id: 'future', title: 'Plan the team offsite', completed: false, due: '2026-12-01', priority: 'normal', tags: [] };
+  const taskUndated = { id: 'undated', title: 'Water the office plants', completed: true, due: null, priority: 'low', tags: [] };
+  const taskSoonest = { id: 'soonest', title: 'Renew the parking permit', completed: false, due: '2026-10-01', priority: 'high', tags: ['errands'] };
+  const unsorted = [taskFuture, taskUndated, taskSoonest];
+  const sortedByDue = [taskSoonest, taskFuture, taskUndated];
+
+  const api = await startFakeApi(async ({ method, url }) => {
+    if (method === 'GET' && url === '/tasks') return { status: 200, body: unsorted };
+    if (method === 'GET' && url === '/tasks?sort=due') return { status: 200, body: sortedByDue };
+    throw new Error(`unexpected request: ${method} ${url}`);
+  });
+  t.after(api.close);
+  const web = await startWebServer({ agent: api.agent });
+  t.after(web.close);
+
+  const dom = await loadPage(web.socketPath);
+  const { document } = dom.window;
+
+  const sortSelect = document.querySelector('#sort-select');
+  assert.ok(sortSelect, 'expected a #sort-select control to choose the sort order');
+
+  sortSelect.value = 'due';
+  sortSelect.dispatchEvent(new dom.window.Event('change'));
+  await flush();
+
+  const ids = [...document.querySelectorAll('#todo-list li')].map((li) => li.dataset.id);
+  assert.deepEqual(ids, ['soonest', 'future', 'undated'], 'expected the list to be rendered in the order GET /tasks?sort=due returned it, soonest due date first with the undated todo last');
+});
+
 test('AC4: deleting a todo in the web UI removes it from the list', async (t) => {
   const task = { id: 't1', title: 'Buy milk', completed: false, due: null, priority: 'normal', tags: [] };
   const api = await startFakeApi(async ({ method, url }) => {
