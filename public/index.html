@@ -3,11 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <title>Todo</title>
+  <style>
+    li.overdue { color: #b00020; font-weight: bold; }
+  </style>
 </head>
 <body>
   <h1>Todos</h1>
   <form id="add-form">
     <input id="title-input" type="text" placeholder="New todo" required />
+    <input id="due-input" type="date" />
     <button type="submit">Add</button>
   </form>
   <ul id="todo-list"></ul>
