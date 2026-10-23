@@ -13,16 +13,18 @@ function todayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Each row keeps its field elements on `li._refs` so a later render can
+// update an existing row's content in place (applyTask) instead of
+// rebuilding it, which is what lets a mutation touch only the rows that
+// actually changed.
 function createTaskElement(task) {
   const li = document.createElement('li');
   li.dataset.id = task.id;
   li.className = 'todo-row';
-  li.classList.toggle('overdue', isOverdue(task));
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = 'checkbox-input';
-  checkbox.checked = task.completed;
   checkbox.addEventListener('change', () => toggleDone(task.id, checkbox.checked));
 
   const info = document.createElement('div');
@@ -32,36 +34,20 @@ function createTaskElement(task) {
   titleRow.className = 'flex flex-wrap items-center gap-2';
 
   const titleSpan = document.createElement('span');
-  titleSpan.className = task.completed
-    ? 'font-medium text-muted-foreground line-through'
-    : 'font-medium text-foreground';
-  titleSpan.textContent = task.title;
 
   const priorityBadge = document.createElement('span');
   priorityBadge.className = 'badge';
-  priorityBadge.textContent = task.priority;
 
   titleRow.append(titleSpan, priorityBadge);
 
-  if (isOverdue(task)) {
-    const overdueBadge = document.createElement('span');
-    overdueBadge.className = 'badge badge-overdue';
-    overdueBadge.textContent = 'Overdue';
-    titleRow.append(overdueBadge);
-  }
-
-  const tags = task.tags && task.tags.length ? task.tags.join(', ') : 'none';
-  const due = task.due || 'none';
   const metaSpan = document.createElement('span');
   metaSpan.className = 'text-muted-foreground';
-  metaSpan.textContent = `tags: ${tags}, due: ${due}`;
 
   info.append(titleRow, metaSpan);
 
   const dueEdit = document.createElement('input');
   dueEdit.type = 'date';
   dueEdit.className = 'due-edit input h-8 w-36 shrink-0 text-xs';
-  dueEdit.value = task.due || '';
   dueEdit.addEventListener('change', () => changeDue(task.id, dueEdit.value));
 
   const deleteBtn = document.createElement('button');
@@ -71,13 +57,61 @@ function createTaskElement(task) {
   deleteBtn.addEventListener('click', () => deleteTask(task.id));
 
   li.append(checkbox, info, dueEdit, deleteBtn);
+
+  li._refs = { checkbox, titleRow, titleSpan, priorityBadge, metaSpan, dueEdit, overdueBadge: null };
+  applyTask(li, task);
   return li;
+}
+
+function applyTask(li, task) {
+  const refs = li._refs;
+  li.classList.toggle('overdue', isOverdue(task));
+
+  refs.checkbox.checked = task.completed;
+
+  refs.titleSpan.className = task.completed
+    ? 'font-medium text-muted-foreground line-through'
+    : 'font-medium text-foreground';
+  refs.titleSpan.textContent = task.title;
+
+  refs.priorityBadge.textContent = task.priority;
+
+  if (isOverdue(task)) {
+    if (!refs.overdueBadge) {
+      refs.overdueBadge = document.createElement('span');
+      refs.overdueBadge.className = 'badge badge-overdue';
+      refs.overdueBadge.textContent = 'Overdue';
+      refs.titleRow.append(refs.overdueBadge);
+    }
+  } else if (refs.overdueBadge) {
+    refs.overdueBadge.remove();
+    refs.overdueBadge = null;
+  }
+
+  const tags = task.tags && task.tags.length ? task.tags.join(', ') : 'none';
+  const due = task.due || 'none';
+  refs.metaSpan.textContent = `tags: ${tags}, due: ${due}`;
+
+  refs.dueEdit.value = task.due || '';
 }
 
 function renderTasks() {
   const list = document.getElementById('todo-list');
-  list.innerHTML = '';
-  for (const task of tasks) list.appendChild(createTaskElement(task));
+  const existingRows = new Map();
+  for (const li of list.children) existingRows.set(li.dataset.id, li);
+
+  const seenIds = new Set();
+  for (const task of tasks) {
+    seenIds.add(task.id);
+    let li = existingRows.get(task.id);
+    if (li) applyTask(li, task);
+    else li = createTaskElement(task);
+    list.appendChild(li);
+  }
+
+  for (const [id, li] of existingRows) {
+    if (!seenIds.has(id)) li.remove();
+  }
 }
 
 function tasksUrl() {
