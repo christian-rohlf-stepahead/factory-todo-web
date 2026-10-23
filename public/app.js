@@ -4,6 +4,22 @@
 let tasks = [];
 let sort = '';
 
+// Rows mid-fade-out after a delete: still in the DOM (so the exit animation
+// can finish) but no longer in `tasks`, so renderTasks's cleanup pass must
+// not rip them out before their timer below does.
+const exitingIds = new Set();
+
+const ROW_ANIMATION_MS = 200;
+
+function reducedMotionPreferred() {
+  return typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function rowAnimationDelay() {
+  return reducedMotionPreferred() ? 0 : ROW_ANIMATION_MS;
+}
+
 function isOverdue(task) {
   if (task.completed || !task.due) return false;
   return task.due < todayDate();
@@ -65,13 +81,18 @@ function createTaskElement(task) {
 
 function applyTask(li, task) {
   const refs = li._refs;
+  // Any update to a row's content (an edit, a toggle, a refetched sort)
+  // means it is no longer "just entered" — clearing this here, rather than
+  // on a timer, is what stops a later unrelated change from replaying the
+  // entrance animation on a row that only just finished it.
+  delete li.dataset.animate;
   li.classList.toggle('overdue', isOverdue(task));
 
   refs.checkbox.checked = task.completed;
 
   refs.titleSpan.className = task.completed
-    ? 'font-medium text-muted-foreground line-through'
-    : 'font-medium text-foreground';
+    ? 'font-medium text-muted-foreground line-through transition-colors'
+    : 'font-medium text-foreground transition-colors';
   refs.titleSpan.textContent = task.title;
 
   refs.priorityBadge.textContent = task.priority;
@@ -110,8 +131,34 @@ function renderTasks() {
   }
 
   for (const [id, li] of existingRows) {
-    if (!seenIds.has(id)) li.remove();
+    if (!seenIds.has(id) && !exitingIds.has(id)) li.remove();
   }
+}
+
+// Picks where focus should land once a row currently holding it is taken
+// out of the tab order (mid delete-fade) or removed outright, so it never
+// silently falls back to the page background.
+function pickFocusTarget(li) {
+  const next = li.nextElementSibling?.querySelector('button.delete-btn');
+  if (next) return next;
+  const prev = li.previousElementSibling?.querySelector('button.delete-btn');
+  if (prev) return prev;
+  return document.getElementById('title-input');
+}
+
+function beginExit(li) {
+  exitingIds.add(li.dataset.id);
+  li.dataset.animate = 'exit';
+  li.setAttribute('aria-hidden', 'true');
+  li.setAttribute('inert', '');
+  if (li.contains(document.activeElement)) {
+    pickFocusTarget(li)?.focus();
+  }
+}
+
+function finishExit(li) {
+  exitingIds.delete(li.dataset.id);
+  li.remove();
 }
 
 function tasksUrl() {
@@ -134,6 +181,8 @@ async function addTask(title, due) {
   const created = await res.json();
   tasks.push(created);
   renderTasks();
+  const newLi = document.querySelector(`#todo-list li[data-id="${created.id}"]`);
+  if (newLi) newLi.dataset.animate = 'enter';
 }
 
 async function changeDue(id, due) {
@@ -159,9 +208,12 @@ async function toggleDone(id, completed) {
 }
 
 async function deleteTask(id) {
+  const li = document.querySelector(`#todo-list li[data-id="${id}"]`);
+  if (li) beginExit(li);
   await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
   tasks = tasks.filter((task) => task.id !== id);
-  renderTasks();
+  if (li) setTimeout(() => finishExit(li), rowAnimationDelay());
+  else renderTasks();
 }
 
 function init() {
