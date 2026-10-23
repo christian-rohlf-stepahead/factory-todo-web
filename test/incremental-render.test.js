@@ -34,6 +34,14 @@ function flush(times = 10) {
   });
 }
 
+// I-13 W2 made a delete fade the row out before removing it (see
+// test/animations.test.js), superseding the instant removal this suite
+// pinned before that; waiting a beat past the fade, rather than just
+// flushing microtasks, is what the new behaviour needs here.
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function loadPage(webSocketPath) {
   const htmlRes = await unixRequest(webSocketPath, { path: '/' });
   const jsRes = await unixRequest(webSocketPath, { path: '/app.js' });
@@ -116,6 +124,7 @@ test('AC1: deleting a todo leaves the DOM elements of the todos that remain unto
     .querySelector('button.delete-btn')
     .dispatchEvent(new dom.window.Event('click', { bubbles: true }));
   await flush();
+  await wait(250);
 
   assert.equal(rowFor(document, 't2'), null, 'expected the deleted todo to be removed from the list');
   assert.equal(

@@ -58,10 +58,19 @@
 
   .todo-list {
     @apply flex flex-col gap-3;
+    animation: todo-list-fade-in 220ms ease-out;
   }
 
   .todo-row {
     @apply flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 shadow-sm;
+  }
+
+  .todo-row[data-animate='enter'] {
+    animation: todo-row-enter 200ms ease-out;
+  }
+
+  .todo-row[data-animate='exit'] {
+    animation: todo-row-exit 200ms ease-in forwards;
   }
 
   .todo-row.overdue {
@@ -74,5 +83,35 @@
 
   .badge-overdue {
     @apply border-destructive/40 bg-destructive/10 text-destructive;
+  }
+}
+
+@keyframes todo-list-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes todo-row-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes todo-row-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Collapses every animation/transition to effectively nothing rather than
+   removing them outright, so JS that waits on a row's exit (see app.js)
+   still behaves the same, just near-instantly. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
