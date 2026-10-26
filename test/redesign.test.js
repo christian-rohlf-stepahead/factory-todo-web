@@ -382,7 +382,11 @@ test('AC5: sorting by default, priority, and due date all still work, and the so
   assert.ok(hasComponentStyling(sortSelect), 'expected #sort-select to carry component-library classes');
 
   const idsOf = () => [...document.querySelectorAll('#todo-list li')].map((li) => li.dataset.id);
-  assert.deepEqual(idsOf(), ['low', 'normal', 'high'], 'expected the default order on initial load');
+  // I-14 W2's needs-attention grouping (see test/layout.test.js) pins a
+  // high-priority todo to the top of the page even on the default,
+  // unsorted order — so `high` leads here even though it's last in the
+  // API's own response order.
+  assert.deepEqual(idsOf(), ['high', 'low', 'normal'], 'expected the default order on initial load, with the high-priority todo pinned to the needs-attention block above the rest');
 
   sortSelect.value = 'priority';
   sortSelect.dispatchEvent(new dom.window.Event('change'));
