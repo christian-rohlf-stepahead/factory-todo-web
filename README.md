@@ -52,3 +52,7 @@ the `test` step declared in `.factory/environment.json`: they read
 `FACTORY_URL_TODO_WEB` and `FACTORY_URL_TODO_CLI` and check the web app and
 the web terminal from a real browser. They need no browser or deployment in
 this repository's own sandbox and are not run by `npm test`.
+
+Every test keeps a screenshot, pass or fail; a failed test also keeps a
+trace; no test keeps a video. The step writes them under the `visuals`
+folder declared in `.factory/environment.json`, next to the JUnit report.

@@ -9,6 +9,7 @@
     "image": "e2e",
     "command": ["npx", "playwright", "test"],
     "report": "/out/junit.xml",
+    "visuals": "/out/visuals",
     "timeoutSeconds": 900
   }
 }
