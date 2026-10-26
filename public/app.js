@@ -3,6 +3,12 @@
 // list after every change.
 let tasks = [];
 let sort = '';
+let tagFilter = null;
+let overdueFilter = false;
+
+// Every tag ever seen in an unfiltered response, so the tag chips offered
+// don't shrink to just the active filter's own tag once one is applied.
+const knownTags = [];
 
 // Rows mid-fade-out after a delete: still in the DOM (so the exit animation
 // can finish) but no longer in `tasks`, so renderTasks's cleanup pass must
@@ -27,6 +33,20 @@ function isOverdue(task) {
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// A todo "needs attention" (Q2) when it isn't done and is either overdue or
+// high-priority; a done todo never needs attention even if overdue or
+// high-priority, since it's already handled.
+function needsAttention(task) {
+  return !task.completed && (isOverdue(task) || task.priority === 'high');
+}
+
+function splitByAttention(list) {
+  const attention = [];
+  const rest = [];
+  for (const task of list) (needsAttention(task) ? attention : rest).push(task);
+  return { attention, rest };
 }
 
 // Each row keeps its field elements on `li._refs` so a later render can
@@ -116,23 +136,54 @@ function applyTask(li, task) {
   refs.dueEdit.value = task.due || '';
 }
 
-function renderTasks() {
-  const list = document.getElementById('todo-list');
+function renderRows(listEl, rows) {
   const existingRows = new Map();
-  for (const li of list.children) existingRows.set(li.dataset.id, li);
+  for (const li of listEl.children) existingRows.set(li.dataset.id, li);
 
   const seenIds = new Set();
-  for (const task of tasks) {
+  for (const task of rows) {
     seenIds.add(task.id);
     let li = existingRows.get(task.id);
     if (li) applyTask(li, task);
     else li = createTaskElement(task);
-    list.appendChild(li);
+    listEl.appendChild(li);
   }
 
   for (const [id, li] of existingRows) {
     if (!seenIds.has(id) && !exitingIds.has(id)) li.remove();
   }
+}
+
+function renderTasks() {
+  const { attention, rest } = splitByAttention(tasks);
+  renderRows(document.querySelector('#attention-section .todo-sublist'), attention);
+  renderRows(document.querySelector('#rest-section .todo-sublist'), rest);
+}
+
+// Reuses each tag's existing button across reloads (only updating its
+// pressed state) rather than rebuilding the row from scratch, so a button a
+// caller already holds a reference to — e.g. one just clicked — stays the
+// same element and keeps receiving later clicks.
+function renderFilterChips() {
+  const container = document.getElementById('tag-filters');
+  const existingButtons = new Map();
+  for (const button of container.children) existingButtons.set(button.dataset.tag, button);
+
+  for (const tag of knownTags) {
+    let button = existingButtons.get(tag);
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'chip';
+      button.dataset.tag = tag;
+      button.textContent = `#${tag}`;
+      container.appendChild(button);
+    }
+    button.setAttribute('aria-pressed', String(tagFilter === tag));
+  }
+
+  const overdueButton = document.getElementById('filter-overdue');
+  overdueButton.setAttribute('aria-pressed', String(overdueFilter));
 }
 
 // Picks where focus should land once a row currently holding it is taken
@@ -162,12 +213,31 @@ function finishExit(li) {
 }
 
 function tasksUrl() {
-  return sort ? `/api/tasks?sort=${sort}` : '/api/tasks';
+  const params = new URLSearchParams();
+  if (sort) params.set('sort', sort);
+  if (tagFilter) params.set('tag', tagFilter);
+  if (overdueFilter) params.set('overdue', 'true');
+  const query = params.toString();
+  return query ? `/api/tasks?${query}` : '/api/tasks';
+}
+
+function rememberTags(list) {
+  // Only an unfiltered-by-tag response tells us the true tag universe; a
+  // tag-filtered response would otherwise make the chip row shrink to just
+  // the active tag.
+  if (tagFilter) return;
+  for (const task of list) {
+    for (const tag of task.tags || []) {
+      if (!knownTags.includes(tag)) knownTags.push(tag);
+    }
+  }
 }
 
 async function loadTasks() {
   const res = await fetch(tasksUrl());
   tasks = await res.json();
+  rememberTags(tasks);
+  renderFilterChips();
   renderTasks();
 }
 
@@ -220,6 +290,17 @@ function init() {
   loadTasks();
   document.getElementById('sort-select').addEventListener('change', (event) => {
     sort = event.target.value;
+    loadTasks();
+  });
+  document.getElementById('filter-overdue').addEventListener('click', () => {
+    overdueFilter = !overdueFilter;
+    loadTasks();
+  });
+  document.getElementById('tag-filters').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-tag]');
+    if (!button) return;
+    const { tag } = button.dataset;
+    tagFilter = tagFilter === tag ? null : tag;
     loadTasks();
   });
   document.getElementById('add-form').addEventListener('submit', (event) => {
