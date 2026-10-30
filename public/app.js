@@ -79,7 +79,13 @@ function createTaskElement(task) {
   const metaSpan = document.createElement('span');
   metaSpan.className = 'text-muted-foreground';
 
-  info.append(titleRow, metaSpan);
+  const noteInput = document.createElement('input');
+  noteInput.type = 'text';
+  noteInput.className = 'note-input input mt-1 text-xs';
+  noteInput.placeholder = 'Add a note…';
+  noteInput.addEventListener('change', () => changeNote(task.id, noteInput.value));
+
+  info.append(titleRow, metaSpan, noteInput);
 
   const dueEdit = document.createElement('input');
   dueEdit.type = 'date';
@@ -94,7 +100,7 @@ function createTaskElement(task) {
 
   li.append(checkbox, info, dueEdit, deleteBtn);
 
-  li._refs = { checkbox, titleRow, titleSpan, priorityBadge, metaSpan, dueEdit, overdueBadge: null };
+  li._refs = { checkbox, titleRow, titleSpan, priorityBadge, metaSpan, noteInput, dueEdit, overdueBadge: null, noteError: null };
   applyTask(li, task);
   return li;
 }
@@ -134,6 +140,29 @@ function applyTask(li, task) {
   refs.metaSpan.textContent = `tags: ${tags}, due: ${due}`;
 
   refs.dueEdit.value = task.due || '';
+  refs.noteInput.value = task.note || '';
+}
+
+// Shows the API's refusal message on the row (a convention this feature
+// introduces, since no note-refusal error display existed to follow) without
+// touching `tasks`, so the field can be snapped back to the task's last
+// accepted note alongside it.
+function showNoteError(li, message) {
+  const refs = li._refs;
+  if (!refs.noteError) {
+    refs.noteError = document.createElement('p');
+    refs.noteError.className = 'note-error text-xs text-destructive';
+    li.querySelector('.note-input').insertAdjacentElement('afterend', refs.noteError);
+  }
+  refs.noteError.textContent = message;
+}
+
+function clearNoteError(li) {
+  const refs = li._refs;
+  if (refs.noteError) {
+    refs.noteError.remove();
+    refs.noteError = null;
+  }
 }
 
 function renderRows(listEl, rows) {
@@ -263,6 +292,27 @@ async function changeDue(id, due) {
   });
   const updated = await res.json();
   tasks = tasks.map((task) => (task.id === id ? updated : task));
+  renderTasks();
+}
+
+async function changeNote(id, note) {
+  const li = document.querySelector(`#todo-list li[data-id="${id}"]`);
+  const res = await fetch(`/api/tasks/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ note }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const task = tasks.find((t) => t.id === id);
+    if (li) {
+      li._refs.noteInput.value = task ? task.note || '' : '';
+      showNoteError(li, body.error);
+    }
+    return;
+  }
+  tasks = tasks.map((task) => (task.id === id ? body : task));
+  if (li) clearNoteError(li);
   renderTasks();
 }
 
